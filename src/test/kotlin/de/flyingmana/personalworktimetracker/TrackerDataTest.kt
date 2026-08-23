@@ -21,15 +21,33 @@ class TrackerDataTest : StringSpec({
         runningEntries(data).map { it.id } shouldBe listOf(firstId, secondId)
     }
 
-    "starting a task timer rejects blank text and duplicate identities" {
+    "starting a task timer allows blank text but rejects duplicate identities" {
         val id = UUID.randomUUID()
+        val blankTextId = UUID.randomUUID()
         val start = LocalDateTime.of(2026, 8, 23, 9, 0)
         val data = startTaskTimer(TrackerData(), id, "Task", start).successData()
 
-        startTaskTimer(data, UUID.randomUUID(), "  ", start) shouldBe
-            TrackerDataResult.Failure(TrackerDataError.BlankTaskText)
+        startTaskTimer(data, blankTextId, "  ", start).successData().entries.last() shouldBe
+            TaskTimerEntry(blankTextId, "", start)
         startTaskTimer(data, id, "Another task", start) shouldBe
             TrackerDataResult.Failure(TrackerDataError.DuplicateId)
+    }
+
+    "task timer text can change while running or finished without changing timestamps" {
+        val runningId = UUID.randomUUID()
+        val finishedId = UUID.randomUUID()
+        val start = LocalDateTime.of(2026, 8, 23, 9, 0)
+        val runningData = startTaskTimer(TrackerData(), runningId, "Draft", start).successData()
+        val data = startTaskTimer(runningData, finishedId, "Review", start.plusHours(1)).successData()
+        val finishedData = stopEntry(data, finishedId, start.plusHours(2)).successData()
+
+        val renamedRunning = updateTaskTimerText(finishedData, runningId, "Plan").successData()
+        val renamedFinished = updateTaskTimerText(renamedRunning, finishedId, "Review notes").successData()
+
+        renamedFinished.entries shouldBe listOf(
+            TaskTimerEntry(runningId, "Plan", start),
+            TaskTimerEntry(finishedId, "Review notes", start.plusHours(1), start.plusHours(2)),
+        )
     }
 
     "stopping an entry retains its immutable fields and validates transitions" {

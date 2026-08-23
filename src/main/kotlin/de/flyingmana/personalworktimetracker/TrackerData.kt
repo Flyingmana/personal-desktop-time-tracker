@@ -62,11 +62,25 @@ fun startTaskTimer(
     text: String,
     startedAt: LocalDateTime,
 ): TrackerDataResult {
-    if (text.isBlank()) return TrackerDataResult.Failure(TrackerDataError.BlankTaskText)
     if (containsId(data, id)) return TrackerDataResult.Failure(TrackerDataError.DuplicateId)
 
     return TrackerDataResult.Success(
-        data.copy(entries = data.entries + TaskTimerEntry(id, text, startedAt))
+        data.copy(entries = data.entries + TaskTimerEntry(id, text.trim(), startedAt))
+    )
+}
+
+fun updateTaskTimerText(
+    data: TrackerData,
+    taskEntryId: UUID,
+    text: String,
+): TrackerDataResult {
+    val entry = data.entries.firstOrNull { it.id == taskEntryId }
+        ?: return TrackerDataResult.Failure(TrackerDataError.TaskEntryNotFound)
+    if (entry !is TaskTimerEntry) return TrackerDataResult.Failure(TrackerDataError.TaskEntryNotFound)
+
+    val updatedEntry = entry.copy(text = text.trim())
+    return TrackerDataResult.Success(
+        data.copy(entries = data.entries.map { current -> if (current.id == taskEntryId) updatedEntry else current })
     )
 }
 
