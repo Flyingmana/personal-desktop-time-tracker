@@ -1,0 +1,58 @@
+CREATE TABLE labels (
+  id TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  color_code TEXT,
+  parent_id TEXT
+);
+
+CREATE TABLE entries (
+  id TEXT NOT NULL PRIMARY KEY,
+  entry_type TEXT NOT NULL,
+  text TEXT,
+  start_at TEXT NOT NULL,
+  end_at TEXT
+);
+
+CREATE TABLE entry_labels (
+  entry_id TEXT NOT NULL,
+  label_id TEXT NOT NULL,
+  PRIMARY KEY (entry_id, label_id)
+);
+
+CREATE INDEX entries_start_at ON entries(start_at);
+CREATE INDEX entry_labels_label_id ON entry_labels(label_id);
+
+selectAllLabels:
+SELECT * FROM labels;
+
+upsertLabel:
+INSERT OR REPLACE INTO labels(id, name, color_code, parent_id)
+VALUES (?, ?, ?, ?);
+
+selectAllEntries:
+SELECT * FROM entries;
+
+selectEntriesInRange:
+SELECT * FROM entries
+WHERE start_at >= ? AND start_at < ?;
+
+selectEntriesForLabelInRange:
+SELECT entries.* FROM entries
+JOIN entry_labels ON entry_labels.entry_id = entries.id
+WHERE entry_labels.label_id = ? AND entries.start_at >= ? AND entries.start_at < ?;
+
+upsertEntry:
+INSERT OR REPLACE INTO entries(id, entry_type, text, start_at, end_at)
+VALUES (?, ?, ?, ?, ?);
+
+selectLabelIdsForEntry:
+SELECT label_id FROM entry_labels
+WHERE entry_id = ?;
+
+deleteEntryLabels:
+DELETE FROM entry_labels
+WHERE entry_id = ?;
+
+insertEntryLabel:
+INSERT INTO entry_labels(entry_id, label_id)
+VALUES (?, ?);

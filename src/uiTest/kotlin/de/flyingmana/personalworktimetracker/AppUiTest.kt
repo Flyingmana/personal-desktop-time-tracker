@@ -52,6 +52,23 @@ class AppUiTest {
     }
 
     @Test
+    fun successfulTimerChange_isPersistedImmediately() {
+        val start = LocalDateTime.of(2026, 8, 23, 9, 0)
+        var persistedData: TrackerData? = null
+        composeRule.setContent {
+            App(onDataChanged = { persistedData = it }) { start }
+        }
+
+        composeRule.onNodeWithTag("startTimerButton").performClick()
+
+        composeRule.runOnIdle {
+            val persistedTimer = requireNotNull(persistedData)
+                .entries.filterIsInstance<TaskTimerEntry>().single()
+            check(persistedTimer.start == start)
+        }
+    }
+
+    @Test
     fun attendanceTimer_startsStopsAndContinuesWithAccumulatedTime() {
         var currentTime = LocalDateTime.of(2026, 8, 23, 9, 0)
         composeRule.setContent { App { currentTime } }

@@ -76,10 +76,15 @@ fun taskTimerDayGroups(
 @Composable
 fun App(
     initialData: TrackerData = TrackerData(),
+    onDataChanged: (TrackerData) -> Unit = {},
     clock: () -> LocalDateTime = LocalDateTime::now,
 ) {
     var selectedTab by remember { mutableStateOf(AppTab.Timers) }
     var trackerData by remember { mutableStateOf(initialData) }
+    val updateTrackerData: (TrackerData) -> Unit = { updatedData ->
+        trackerData = updatedData
+        onDataChanged(updatedData)
+    }
 
     Column(modifier = Modifier.padding(16.dp)) {
         Row(modifier = Modifier.testTag("appTabs")) {
@@ -100,7 +105,7 @@ fun App(
         when (selectedTab) {
             AppTab.Timers -> TimerListScreen(
                 data = trackerData,
-                onDataChanged = { trackerData = it },
+                onDataChanged = updateTrackerData,
                 clock = clock,
             )
             AppTab.Reporting -> ReportingPageScreen(data = trackerData)

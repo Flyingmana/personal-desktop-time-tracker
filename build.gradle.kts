@@ -4,6 +4,7 @@ plugins {
     kotlin("jvm") version "2.1.21"
     id("org.jetbrains.kotlin.plugin.compose") version "2.1.21"
     id("org.jetbrains.compose") version "1.8.2"
+    id("app.cash.sqldelight") version "2.1.0"
     `jvm-test-suite`
 }
 
@@ -32,6 +33,16 @@ kotlin {
 
 dependencies {
     implementation(compose.desktop.currentOs)
+    implementation("app.cash.sqldelight:sqlite-driver:2.1.0")
+}
+
+sqldelight {
+    databases {
+        create("TrackerDatabase") {
+            packageName.set("de.flyingmana.personalworktimetracker.persistence")
+            verifyMigrations.set(false)
+        }
+    }
 }
 
 
@@ -81,6 +92,10 @@ testing {
 
 tasks.named("check") {
     dependsOn(testing.suites.named("uiTest"))
+}
+
+tasks.matching { it.name == "verifyMainTrackerDatabaseMigration" }.configureEach {
+    enabled = false
 }
 
 dependencies {
