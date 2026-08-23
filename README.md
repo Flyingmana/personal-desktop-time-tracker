@@ -8,6 +8,19 @@ targeting Windows and Ubuntu.
 Notable parts of this code were created by AI over Copilot in vscode.
 Only Free Tiers were used, no money got payed into AI.
 
+## Screenshots
+
+### Tracker
+
+![Tracker view](docs/images/2026_08/screen_tracker.png)
+
+### Reporting
+
+![Reporting view](docs/images/2026_08/screen_reporting.png)
+
+### Timer labels
+
+![Timer labels](docs/images/2026_08/screen_labels.png)
 
 ## Requirements
 
