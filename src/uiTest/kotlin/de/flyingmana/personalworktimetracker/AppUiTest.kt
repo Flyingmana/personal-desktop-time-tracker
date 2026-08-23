@@ -49,6 +49,24 @@ class AppUiTest {
     }
 
     @Test
+    fun attendanceTimer_startsStopsAndContinuesWithAccumulatedTime() {
+        var currentTime = LocalDateTime.of(2026, 8, 23, 9, 0)
+        composeRule.setContent { App { currentTime } }
+
+        composeRule.onNodeWithTag("attendanceTimerSection").assertExists()
+        composeRule.onNodeWithTag("startAttendanceButton").performClick()
+        composeRule.onNodeWithTag("runningAttendanceElapsed").assertExists()
+        currentTime = currentTime.plusMinutes(30)
+        composeRule.onNodeWithTag("stopAttendanceButton").performClick()
+
+        composeRule.onNodeWithTag("attendanceStart").assertExists()
+        composeRule.onNodeWithTag("attendanceEnd").assertExists()
+        composeRule.onNodeWithTag("attendanceTodayElapsed").assertTextEquals("Today: 30 min")
+        composeRule.onNodeWithTag("continueAttendanceButton").performClick()
+        composeRule.onNodeWithTag("runningAttendanceElapsed").assertExists()
+    }
+
+    @Test
     fun startingWithEmptyText_createsUnnamedTimer() {
         composeRule.setContent { App() }
 

@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
@@ -30,6 +31,26 @@ private enum class AppTab {
 
 fun elapsedMinutes(start: LocalDateTime, currentTime: LocalDateTime): Long =
     ChronoUnit.MINUTES.between(start, currentTime).coerceAtLeast(0)
+
+fun attendanceMinutesOn(
+    data: TrackerData,
+    date: LocalDate,
+    currentTime: LocalDateTime,
+): Long {
+    val dayStart = date.atStartOfDay()
+    val dayEnd = date.plusDays(1).atStartOfDay()
+
+    return data.entries.filterIsInstance<AttendanceEntry>().sumOf { entry ->
+        val intervalEnd = entry.end ?: currentTime
+        val overlapStart = maxOf(entry.start, dayStart)
+        val overlapEnd = minOf(intervalEnd, dayEnd)
+        if (overlapEnd.isAfter(overlapStart)) {
+            ChronoUnit.MINUTES.between(overlapStart, overlapEnd)
+        } else {
+            0
+        }
+    }
+}
 
 @Composable
 fun App(clock: () -> LocalDateTime = LocalDateTime::now) {
@@ -81,6 +102,19 @@ private fun TimerListScreen(
     }
 
     Column {
+        AttendanceTimerSection(
+            data = data,
+            currentTime = currentTime,
+            onStartAttendance = {
+                (startAttendance(data, UUID.randomUUID(), clock()) as? TrackerDataResult.Success)
+                    ?.let { onDataChanged(it.data) }
+            },
+            onStopAttendance = { attendanceId ->
+                (stopEntry(data, attendanceId, clock()) as? TrackerDataResult.Success)
+                    ?.let { onDataChanged(it.data) }
+            },
+        )
+
         Row {
             TextField(
                 value = timerText,
@@ -125,6 +159,63 @@ private fun TimerListScreen(
                         },
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AttendanceTimerSection(
+    data: TrackerData,
+    currentTime: LocalDateTime,
+    onStartAttendance: () -> Unit,
+    onStopAttendance: (UUID) -> Unit,
+) {
+    val runningAttendance = runningAttendanceEntry(data)
+    val latestFinishedAttendance = data.entries.filterIsInstance<AttendanceEntry>()
+        .filter { it.end != null }
+        .maxByOrNull { it.start }
+
+    Column(modifier = Modifier.padding(bottom = 16.dp).testTag("attendanceTimerSection")) {
+        Text("Attendance")
+        Text(
+            "Today: ${attendanceMinutesOn(data, currentTime.toLocalDate(), currentTime)} min",
+            modifier = Modifier.testTag("attendanceTodayElapsed")
+        )
+
+        if (runningAttendance != null) {
+            Text(
+                "Start: ${runningAttendance.start.format(timerDateTimeFormatter)}",
+                modifier = Modifier.testTag("attendanceStart")
+            )
+            Text(
+                "Elapsed: ${elapsedMinutes(runningAttendance.start, currentTime)} min",
+                modifier = Modifier.testTag("runningAttendanceElapsed")
+            )
+            Button(
+                onClick = { onStopAttendance(runningAttendance.id) },
+                modifier = Modifier.testTag("stopAttendanceButton")
+            ) {
+                Text("Stop attendance")
+            }
+        } else {
+            latestFinishedAttendance?.let { attendance ->
+                Text(
+                    "Start: ${attendance.start.format(timerDateTimeFormatter)}",
+                    modifier = Modifier.testTag("attendanceStart")
+                )
+                Text(
+                    "End: ${requireNotNull(attendance.end).format(timerDateTimeFormatter)}",
+                    modifier = Modifier.testTag("attendanceEnd")
+                )
+            }
+            Button(
+                onClick = onStartAttendance,
+                modifier = Modifier.testTag(
+                    if (latestFinishedAttendance == null) "startAttendanceButton" else "continueAttendanceButton"
+                )
+            ) {
+                Text(if (latestFinishedAttendance == null) "Start work day" else "Continue attendance")
             }
         }
     }
