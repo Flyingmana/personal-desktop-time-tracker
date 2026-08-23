@@ -22,7 +22,7 @@ private enum class AppTab {
 @Composable
 fun App() {
     var selectedTab by remember { mutableStateOf(AppTab.Timers) }
-    var count by remember { mutableStateOf(0) }
+    var trackerData by remember { mutableStateOf(TrackerData()) }
 
     Column(modifier = Modifier.padding(16.dp)) {
         Row(modifier = Modifier.testTag("appTabs")) {
@@ -41,20 +41,17 @@ fun App() {
         }
 
         when (selectedTab) {
-            AppTab.Timers -> TimerListScreen(count = count, onIncrement = { count = incrementCount(count) })
-            AppTab.Reporting -> ReportingPageScreen()
+            AppTab.Timers -> TimerListScreen(trackerData)
+            AppTab.Reporting -> ReportingPageScreen(data = trackerData)
         }
     }
 }
 
 @Composable
-private fun TimerListScreen(count: Int, onIncrement: () -> Unit) {
+private fun TimerListScreen(data: TrackerData) {
     Column {
-        Text(text = "Hours logged: $count", modifier = Modifier.testTag("countText"))
-        Button(onClick = onIncrement, modifier = Modifier.testTag("incrementButton")) {
-            Text("Log an hour")
+        if (data.entries.isEmpty()) {
+            Text(text = "No timers yet", modifier = Modifier.testTag("timerListEmpty"))
         }
     }
 }
-
-fun incrementCount(current: Int): Int = current + 1

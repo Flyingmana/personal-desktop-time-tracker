@@ -1,6 +1,5 @@
 package de.flyingmana.personalworktimetracker
 
-import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
@@ -13,12 +12,10 @@ class AppUiTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun clickingLogAnHour_incrementsCount() {
+    fun initialTimerList_showsEmptyState() {
         composeRule.setContent { App() }
 
-        composeRule.onNodeWithTag("countText").assertTextEquals("Hours logged: 0")
-        composeRule.onNodeWithTag("incrementButton").performClick()
-        composeRule.onNodeWithTag("countText").assertTextEquals("Hours logged: 1")
+        composeRule.onNodeWithTag("timerListEmpty").assertExists()
     }
 
     @Test
@@ -32,6 +29,6 @@ class AppUiTest {
         composeRule.onNodeWithTag("reportingStartDateInput").assertExists()
         composeRule.onNodeWithTag("reportingEndDateInput").assertExists()
         composeRule.onNodeWithTag("timersTab").performClick()
-        composeRule.onNodeWithTag("countText").assertExists()
+        composeRule.onNodeWithTag("timerListEmpty").assertExists()
     }
 }

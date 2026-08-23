@@ -4,32 +4,41 @@ import io.kotest.core.spec.style.StringSpec
 import io.kotest.matchers.shouldBe
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.util.UUID
 
 class ReportingPageLogicTest : StringSpec({
     "reporting period counts only completed timers and includes zero-day entries" {
         val start = LocalDate.of(2026, 8, 1)
         val end = LocalDate.of(2026, 8, 7)
 
-        val entries = listOf(
-            WorkEntry(
+        val data = TrackerData(entries = listOf(
+            TaskTimerEntry(
+                id = UUID.randomUUID(),
+                text = "First task",
                 start = LocalDateTime.of(2026, 8, 1, 9, 0),
                 end = LocalDateTime.of(2026, 8, 1, 10, 30),
             ),
-            WorkEntry(
+            TaskTimerEntry(
+                id = UUID.randomUUID(),
+                text = "Second task",
                 start = LocalDateTime.of(2026, 8, 4, 14, 0),
                 end = LocalDateTime.of(2026, 8, 4, 15, 0),
             ),
-            WorkEntry(
+            TaskTimerEntry(
+                id = UUID.randomUUID(),
+                text = "Outside period",
                 start = LocalDateTime.of(2026, 8, 8, 8, 0),
                 end = LocalDateTime.of(2026, 8, 8, 9, 30),
             ),
-            WorkEntry(
+            TaskTimerEntry(
+                id = UUID.randomUUID(),
+                text = "Running task",
                 start = LocalDateTime.of(2026, 8, 3, 8, 0),
                 end = null,
             ),
-        )
+        ))
 
-        val report = buildReportingPeriodReport(entries, start, end)
+        val report = buildReportingPeriodReport(data, start, end)
 
         report.totalMinutes shouldBe 150
         report.dailyTotals.map { it.minutes } shouldBe listOf(90, 0, 0, 60, 0, 0, 0)

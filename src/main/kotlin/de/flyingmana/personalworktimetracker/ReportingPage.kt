@@ -21,15 +21,11 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.time.temporal.TemporalAdjusters
+import java.util.UUID
 
 private const val MINUTES_PER_HOUR = 60
 
 private val dateFormatter: DateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE
-
-data class WorkEntry(
-    val start: LocalDateTime,
-    val end: LocalDateTime? = null,
-)
 
 data class DailyTotal(
     val date: LocalDate,
@@ -50,7 +46,7 @@ fun currentMonthReportingRange(referenceDate: LocalDate = LocalDate.now()): Pair
 }
 
 fun buildReportingPeriodReport(
-    entries: List<WorkEntry>,
+    data: TrackerData,
     start: LocalDate,
     end: LocalDate,
 ): ReportingPeriodReport {
@@ -60,8 +56,8 @@ fun buildReportingPeriodReport(
 
     val totalsByDate = allDates.associateWith { 0 }.toMutableMap()
 
-    entries.filter { it.end != null }.forEach { entry ->
-        val actualEnd = entry.end ?: return@forEach
+    finishedEntriesOverlapping(data, start, end).forEach { entry ->
+        val actualEnd = requireNotNull(entry.end)
         val selectedRangeStart = maxOf(start, entry.start.toLocalDate())
         val selectedRangeEnd = minOf(end, actualEnd.toLocalDate())
 
@@ -98,22 +94,39 @@ private fun formatMinutes(totalMinutes: Int): String {
     return "${hours}h ${minutes}m"
 }
 
-fun currentMonthSampleEntries(): List<WorkEntry> = listOf(
-    WorkEntry(LocalDateTime.of(2026, 8, 1, 9, 0), LocalDateTime.of(2026, 8, 1, 10, 30)),
-    WorkEntry(LocalDateTime.of(2026, 8, 4, 14, 0), LocalDateTime.of(2026, 8, 4, 15, 0)),
-    WorkEntry(LocalDateTime.of(2026, 8, 10, 8, 30), LocalDateTime.of(2026, 8, 10, 11, 30)),
+fun currentMonthSampleData(): TrackerData = TrackerData(
+    entries = listOf(
+        TaskTimerEntry(
+            UUID.fromString("00000000-0000-0000-0000-000000000001"),
+            "Sample task",
+            LocalDateTime.of(2026, 8, 1, 9, 0),
+            LocalDateTime.of(2026, 8, 1, 10, 30),
+        ),
+        TaskTimerEntry(
+            UUID.fromString("00000000-0000-0000-0000-000000000002"),
+            "Sample task",
+            LocalDateTime.of(2026, 8, 4, 14, 0),
+            LocalDateTime.of(2026, 8, 4, 15, 0),
+        ),
+        TaskTimerEntry(
+            UUID.fromString("00000000-0000-0000-0000-000000000003"),
+            "Sample task",
+            LocalDateTime.of(2026, 8, 10, 8, 30),
+            LocalDateTime.of(2026, 8, 10, 11, 30),
+        ),
+    ),
 )
 
 @Composable
 fun ReportingPageScreen(
-    entries: List<WorkEntry> = currentMonthSampleEntries(),
+    data: TrackerData = currentMonthSampleData(),
     initialStart: LocalDate = currentMonthReportingRange().first,
     initialEnd: LocalDate = currentMonthReportingRange().second,
 ) {
     var startDate by remember { mutableStateOf(initialStart) }
     var endDate by remember { mutableStateOf(initialEnd) }
 
-    val report = buildReportingPeriodReport(entries, startDate, endDate)
+    val report = buildReportingPeriodReport(data, startDate, endDate)
 
     Column(modifier = Modifier.padding(16.dp)) {
         Text("Reporting", modifier = Modifier.testTag("reportingPageTitle"))
