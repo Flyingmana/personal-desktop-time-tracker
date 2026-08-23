@@ -40,19 +40,32 @@ class AppLogicTest : StringSpec({
         attendanceMinutesOn(data, date, currentTime) shouldBe 225
     }
 
-    "task timer day groups order newest first and include live running time" {
+    "task timer day groups keep running timers first and order completed timers newest first" {
         val august22 = LocalDateTime.of(2026, 8, 22, 14, 0)
         val august23 = LocalDateTime.of(2026, 8, 23, 9, 0)
         val currentTime = LocalDateTime.of(2026, 8, 23, 10, 45)
+        val olderRunningTimer = TaskTimerEntry(UUID.randomUUID(), "Older running", august22)
+        val finishedTimer = TaskTimerEntry(
+            UUID.randomUUID(),
+            "Finished",
+            august23,
+            august23.plusMinutes(45),
+        )
+        val runningTimer = TaskTimerEntry(UUID.randomUUID(), "Running", august23.plusHours(1))
         val timers = listOf(
             TaskTimerEntry(UUID.randomUUID(), "Earlier", august22, august22.plusMinutes(30)),
-            TaskTimerEntry(UUID.randomUUID(), "Finished", august23, august23.plusMinutes(45)),
-            TaskTimerEntry(UUID.randomUUID(), "Running", august23.plusHours(1)),
+            finishedTimer,
+            runningTimer,
+            olderRunningTimer,
         )
 
         taskTimerDayGroups(timers, currentTime) shouldBe listOf(
-            TaskTimerDayGroup(LocalDate.of(2026, 8, 23), 90, timers.drop(1)),
-            TaskTimerDayGroup(LocalDate.of(2026, 8, 22), 30, timers.take(1)),
+            TaskTimerDayGroup(LocalDate.of(2026, 8, 23), 90, listOf(runningTimer, finishedTimer)),
+            TaskTimerDayGroup(
+                LocalDate.of(2026, 8, 22),
+                1275,
+                listOf(olderRunningTimer, timers.first()),
+            ),
         )
     }
 })

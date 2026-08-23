@@ -11,6 +11,7 @@ import org.junit.Rule
 import org.junit.Test
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import java.util.UUID
 
 class AppUiTest {
@@ -99,11 +100,37 @@ class AppUiTest {
             TaskTimerEntry(UUID.randomUUID(), "Live task", LocalDateTime.of(2026, 8, 23, 10, 0)),
         ))
         composeRule.setContent { App(clock = { currentTime }, initialData = data) }
+        val weekdayFormatter = DateTimeFormatter.ofPattern("EEEE, yyyy-MM-dd")
 
         composeRule.onAllNodesWithTag("timerDayHeading")[0]
-            .assertTextEquals("${LocalDate.of(2026, 8, 23)}: 0h 30m")
+            .assertTextEquals(LocalDate.of(2026, 8, 23).format(weekdayFormatter))
         composeRule.onAllNodesWithTag("timerDayHeading")[1]
-            .assertTextEquals("${LocalDate.of(2026, 8, 22)}: 0h 30m")
+            .assertTextEquals(LocalDate.of(2026, 8, 22).format(weekdayFormatter))
+        composeRule.onAllNodesWithTag("timerDayTotal")[0].assertTextEquals("0h 30m")
+        composeRule.onAllNodesWithTag("timerDayTotal")[1].assertTextEquals("0h 30m")
+    }
+
+    @Test
+    fun timerList_showsRunningTimerGroupsBeforeNewerCompletedGroups() {
+        val currentTime = LocalDateTime.of(2026, 8, 23, 10, 30)
+        val olderRunningStart = LocalDateTime.of(2026, 8, 22, 9, 0)
+        val newerFinishedStart = LocalDateTime.of(2026, 8, 23, 9, 0)
+        val data = TrackerData(entries = listOf(
+            TaskTimerEntry(UUID.randomUUID(), "Older running", olderRunningStart),
+            TaskTimerEntry(
+                UUID.randomUUID(),
+                "Newer finished",
+                newerFinishedStart,
+                newerFinishedStart.plusMinutes(30),
+            ),
+        ))
+        composeRule.setContent { App(clock = { currentTime }, initialData = data) }
+        val weekdayFormatter = DateTimeFormatter.ofPattern("EEEE, yyyy-MM-dd")
+
+        composeRule.onAllNodesWithTag("timerDayHeading")[0]
+            .assertTextEquals(olderRunningStart.toLocalDate().format(weekdayFormatter))
+        composeRule.onAllNodesWithTag("timerDayHeading")[1]
+            .assertTextEquals(newerFinishedStart.toLocalDate().format(weekdayFormatter))
     }
 
     @Test

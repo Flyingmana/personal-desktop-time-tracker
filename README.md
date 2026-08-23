@@ -3,6 +3,12 @@
 A Kotlin desktop application built with [Compose Multiplatform for Desktop](https://www.jetbrains.com/lp/compose-multiplatform/),
 targeting Windows and Ubuntu.
 
+## AI Disclosure
+
+Notable parts of this code were created by AI over Copilot in vscode.
+Only Free Tiers were used, no money got payed into AI.
+
+
 ## Requirements
 
 - JDK 21 (Gradle's toolchain support will auto-provision it if not already installed)

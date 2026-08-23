@@ -2,10 +2,15 @@ package de.flyingmana.personalworktimetracker
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.Button
+import androidx.compose.material.Divider
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.OutlinedButton
 import androidx.compose.material.Text
 import androidx.compose.material.TextField
 import androidx.compose.runtime.Composable
@@ -15,13 +20,16 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.UUID
+import androidx.compose.ui.text.font.FontWeight
 import kotlinx.coroutines.delay
 
 private enum class AppTab {
@@ -63,15 +71,21 @@ fun taskTimerDayGroups(
     currentTime: LocalDateTime,
 ): List<TaskTimerDayGroup> = timers.groupBy { it.start.toLocalDate() }
     .map { (date, dayTimers) ->
+        val sortedTimers = dayTimers.sortedWith(
+            compareBy<TaskTimerEntry> { it.end != null }.thenByDescending { it.start }
+        )
         TaskTimerDayGroup(
             date = date,
-            totalMinutes = dayTimers.sumOf { timer ->
+            totalMinutes = sortedTimers.sumOf { timer ->
                 elapsedMinutes(timer.start, timer.end ?: currentTime)
             },
-            timers = dayTimers,
+            timers = sortedTimers,
         )
     }
-    .sortedByDescending { it.date }
+    .sortedWith(
+        compareBy<TaskTimerDayGroup> { group -> group.timers.none { it.end == null } }
+            .thenByDescending { it.date }
+    )
 
 @Composable
 fun App(
@@ -96,7 +110,7 @@ fun App(
             }
             Button(
                 onClick = { selectedTab = AppTab.Reporting },
-                modifier = Modifier.testTag("reportingTab")
+                modifier = Modifier.padding(start = 8.dp).testTag("reportingTab")
             ) {
                 Text("Reporting")
             }
@@ -160,7 +174,7 @@ private fun TimerListScreen(
                             timerText = ""
                         }
                 },
-                modifier = Modifier.testTag("startTimerButton")
+                modifier = Modifier.padding(start = 8.dp).testTag("startTimerButton")
             ) {
                 Text("Start")
             }
@@ -169,18 +183,28 @@ private fun TimerListScreen(
         if (taskTimers.isEmpty()) {
             Text(text = "No timers yet", modifier = Modifier.testTag("timerListEmpty"))
         } else {
+            TimerListColumnHeaders()
             LazyColumn {
                 items(timerGroups, key = { it.date }) { group ->
                     Column(modifier = Modifier.testTag("timerDayGroup")) {
-                        Text(
-                            "${group.date.format(timerDateFormatter)}: ${formatMinutes(group.totalMinutes)}",
-                            modifier = Modifier.testTag("timerDayHeading")
-                        )
-                        Text(
-                            formatMinutes(group.totalMinutes),
-                            modifier = Modifier.testTag("timerDayTotal")
-                        )
-                        group.timers.forEach { timer ->
+                        Row(modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)) {
+                            Spacer(modifier = Modifier.weight(1f))
+                            Column(modifier = Modifier.width(timerTimeColumnWidth)) {
+                                Text(
+                                    group.date.format(timerDayFormatter),
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier.testTag("timerDayHeading")
+                                )
+                                Text(
+                                    formatMinutes(group.totalMinutes),
+                                    fontSize = 20.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.testTag("timerDayTotal")
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(timerActionColumnWidth))
+                        }
+                        group.timers.forEachIndexed { index, timer ->
                             TimerRow(
                                 timer = timer,
                                 currentTime = currentTime,
@@ -198,11 +222,23 @@ private fun TimerListScreen(
                                         ?.let { onDataChanged(it.data) }
                                 },
                             )
+                            if (index < group.timers.lastIndex) {
+                                Divider(color = MaterialTheme.colors.onSurface.copy(alpha = 0.12f))
+                            }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TimerListColumnHeaders() {
+    Row(modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)) {
+        Text("Task", modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+        Text("Time", modifier = Modifier.width(timerTimeColumnWidth), fontWeight = FontWeight.SemiBold)
+        Text("Action", modifier = Modifier.width(timerActionColumnWidth), fontWeight = FontWeight.SemiBold)
     }
 }
 
@@ -219,45 +255,55 @@ private fun AttendanceTimerSection(
         .maxByOrNull { it.start }
 
     Column(modifier = Modifier.padding(bottom = 16.dp).testTag("attendanceTimerSection")) {
-        Text("Attendance")
-        Text(
-            "Today: ${attendanceMinutesOn(data, currentTime.toLocalDate(), currentTime)} min",
-            modifier = Modifier.testTag("attendanceTodayElapsed")
-        )
+        Row {
+            Text("Attendance: ")
+            Text(
+                "Today: ${attendanceMinutesOn(data, currentTime.toLocalDate(), currentTime)} min",
+                modifier = Modifier.testTag("attendanceTodayElapsed")
+            )
+        }
 
         if (runningAttendance != null) {
-            Text(
-                "Start: ${runningAttendance.start.format(timerDateTimeFormatter)}",
-                modifier = Modifier.testTag("attendanceStart")
-            )
-            Text(
-                "Elapsed: ${elapsedMinutes(runningAttendance.start, currentTime)} min",
-                modifier = Modifier.testTag("runningAttendanceElapsed")
-            )
-            Button(
-                onClick = { onStopAttendance(runningAttendance.id) },
-                modifier = Modifier.testTag("stopAttendanceButton")
-            ) {
-                Text("Stop attendance")
+            Row {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Start: ${runningAttendance.start.format(timerDateTimeFormatter)}",
+                        modifier = Modifier.testTag("attendanceStart")
+                    )
+                    Text(
+                        "Elapsed: ${elapsedMinutes(runningAttendance.start, currentTime)} min",
+                        modifier = Modifier.testTag("runningAttendanceElapsed")
+                    )
+                }
+                Button(
+                    onClick = { onStopAttendance(runningAttendance.id) },
+                    modifier = Modifier.padding(start = 8.dp).testTag("stopAttendanceButton")
+                ) {
+                    Text("Stop attendance")
+                }
             }
         } else {
-            latestFinishedAttendance?.let { attendance ->
-                Text(
-                    "Start: ${attendance.start.format(timerDateTimeFormatter)}",
-                    modifier = Modifier.testTag("attendanceStart")
-                )
-                Text(
-                    "End: ${requireNotNull(attendance.end).format(timerDateTimeFormatter)}",
-                    modifier = Modifier.testTag("attendanceEnd")
-                )
-            }
-            Button(
-                onClick = onStartAttendance,
-                modifier = Modifier.testTag(
-                    if (latestFinishedAttendance == null) "startAttendanceButton" else "continueAttendanceButton"
-                )
-            ) {
-                Text(if (latestFinishedAttendance == null) "Start work day" else "Continue attendance")
+            Row {
+                latestFinishedAttendance?.let { attendance ->
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Start: ${attendance.start.format(timerDateTimeFormatter)}",
+                            modifier = Modifier.testTag("attendanceStart")
+                        )
+                        Text(
+                            "End: ${requireNotNull(attendance.end).format(timerDateTimeFormatter)}",
+                            modifier = Modifier.testTag("attendanceEnd")
+                        )
+                    }
+                }
+                Button(
+                    onClick = onStartAttendance,
+                    modifier = Modifier.padding(start = 8.dp).testTag(
+                        if (latestFinishedAttendance == null) "startAttendanceButton" else "continueAttendanceButton"
+                    )
+                ) {
+                    Text(if (latestFinishedAttendance == null) "Start work day" else "Continue attendance")
+                }
             }
         }
     }
@@ -271,32 +317,41 @@ private fun TimerRow(
     onContinue: () -> Unit,
     onTextChanged: (String) -> Unit,
 ) {
-    Column(modifier = Modifier.padding(top = 8.dp).testTag("timerRow")) {
-        Text("Timer text")
+    Row(modifier = Modifier.padding(vertical = 6.dp).testTag("timerRow")) {
         TextField(
             value = timer.text,
             onValueChange = onTextChanged,
-            modifier = Modifier.testTag("timerLabelInput")
+            modifier = Modifier.weight(1f).testTag("timerLabelInput")
         )
+        Column(modifier = Modifier.width(timerTimeColumnWidth)) {
+            if (timer.end == null) {
+                Text("Running", color = runningTimerColor, fontWeight = FontWeight.SemiBold)
+                Text("Start: ${timer.start.format(timerTimeFormatter)}")
+                Text(
+                    "Elapsed: ${elapsedMinutes(timer.start, currentTime)} min",
+                    modifier = Modifier.testTag("runningTimerElapsed")
+                )
+            } else {
+                Text("Finished", color = finishedTimerColor)
+                Text(
+                    "Start: ${timer.start.format(timerTimeFormatter)}",
+                    modifier = Modifier.testTag("finishedTimerStart")
+                )
+                Text(
+                    "End: ${timer.end.format(timerTimeFormatter)}",
+                    modifier = Modifier.testTag("finishedTimerEnd")
+                )
+            }
+        }
         if (timer.end == null) {
-            Text("Start: ${timer.start.format(timerDateTimeFormatter)}")
-            Text(
-                "Elapsed: ${elapsedMinutes(timer.start, currentTime)} min",
-                modifier = Modifier.testTag("runningTimerElapsed")
-            )
-            Button(onClick = onStop, modifier = Modifier.testTag("stopTimerButton")) {
+            Button(onClick = onStop, modifier = Modifier.width(timerActionColumnWidth).testTag("stopTimerButton")) {
                 Text("Stop")
             }
         } else {
-            Text(
-                "Start: ${timer.start.format(timerDateTimeFormatter)}",
-                modifier = Modifier.testTag("finishedTimerStart")
-            )
-            Text(
-                "End: ${timer.end.format(timerDateTimeFormatter)}",
-                modifier = Modifier.testTag("finishedTimerEnd")
-            )
-            Button(onClick = onContinue, modifier = Modifier.testTag("continueTimerButton")) {
+            OutlinedButton(
+                onClick = onContinue,
+                modifier = Modifier.width(timerActionColumnWidth).testTag("continueTimerButton")
+            ) {
                 Text("Continue")
             }
         }
@@ -306,5 +361,10 @@ private fun TimerRow(
 private fun formatMinutes(totalMinutes: Long): String =
     "${totalMinutes / 60}h ${totalMinutes % 60}m"
 
-private val timerDateFormatter: DateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE
+private val timerTimeColumnWidth = 160.dp
+private val timerActionColumnWidth = 108.dp
+private val runningTimerColor = Color(0xFF2E7D32)
+private val finishedTimerColor = Color(0xFF666666)
+private val timerDayFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("EEEE, yyyy-MM-dd")
+private val timerTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 private val timerDateTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
