@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollbarAdapter
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.Color
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -38,11 +42,19 @@ data class DailyTotal(
     val minutes: Int,
 )
 
+data class LabelTotal(
+    val labelId: UUID,
+    val labelName: String,
+    val minutes: Int,
+    val colorCode: String?,
+)
+
 data class ReportingPeriodReport(
     val start: LocalDate,
     val end: LocalDate,
     val totalMinutes: Int,
     val dailyTotals: List<DailyTotal>,
+    val labelTotals: List<LabelTotal>,
 )
 
 fun currentMonthReportingRange(referenceDate: LocalDate = LocalDate.now()): Pair<LocalDate, LocalDate> {
@@ -56,6 +68,8 @@ fun buildReportingPeriodReport(
     start: LocalDate,
     end: LocalDate,
 ): ReportingPeriodReport {
+    require(!end.isBefore(start)) { "Reporting period end must not precede its start" }
+
     val allDates = generateSequence(start) { current ->
         if (current.isBefore(end)) current.plusDays(1) else null
     }.toList()
@@ -85,12 +99,32 @@ fun buildReportingPeriodReport(
 
     val dailyTotals = allDates.map { date -> DailyTotal(date, totalsByDate[date] ?: 0) }
     val totalMinutes = dailyTotals.sumOf { it.minutes }
+    val labelTotals = data.entries
+        .filterIsInstance<TaskTimerEntry>()
+        .filter { it.end != null && it.labelIds.isNotEmpty() }
+        .mapNotNull { entry ->
+            val actualEnd = requireNotNull(entry.end)
+            val overlapStart = maxOf(entry.start, start.atStartOfDay())
+            val overlapEnd = minOf(actualEnd, end.plusDays(1).atStartOfDay())
+            if (!overlapEnd.isAfter(overlapStart)) return@mapNotNull null
+            val minutes = ChronoUnit.MINUTES.between(overlapStart, overlapEnd).toInt()
+            entry.labelIds.map { labelId -> labelId to minutes }
+        }
+        .flatten()
+        .groupBy({ it.first }, { it.second })
+        .mapNotNull { (labelId, minutes) ->
+            data.labels.firstOrNull { it.id == labelId }?.let { label ->
+                LabelTotal(label.id, label.name, minutes.sum(), label.colorCode)
+            }
+        }
+        .sortedWith(compareByDescending<LabelTotal> { it.minutes }.thenBy { it.labelName })
 
     return ReportingPeriodReport(
         start = start,
         end = end,
         totalMinutes = totalMinutes,
         dailyTotals = dailyTotals,
+        labelTotals = labelTotals,
     )
 }
 
@@ -98,6 +132,16 @@ private fun formatMinutes(totalMinutes: Int): String {
     val hours = totalMinutes / MINUTES_PER_HOUR
     val minutes = totalMinutes % MINUTES_PER_HOUR
     return "${hours}h ${minutes}m"
+}
+
+private fun labelBarColor(colorCode: String?): Color {
+    val digits = colorCode?.removePrefix("#")
+    val colorValue = when (digits?.length) {
+        6 -> runCatching { ("FF$digits").toLong(16) }.getOrNull()
+        8 -> runCatching { digits.toLong(16) }.getOrNull()
+        else -> null
+    }
+    return colorValue?.let { Color(it) } ?: Color(0xFF1976D2)
 }
 
 fun currentMonthSampleData(): TrackerData = TrackerData(
@@ -177,6 +221,28 @@ fun ReportingPageScreen(
             "${startDate.format(dateFormatter)} to ${endDate.format(dateFormatter)}",
             modifier = Modifier.testTag("reportingPeriodText")
         )
+
+        if (report.labelTotals.isNotEmpty()) {
+            val maximumLabelMinutes = report.labelTotals.maxOf { it.minutes }
+            Column(modifier = Modifier.testTag("reportingLabelChart").padding(top = 8.dp)) {
+                Text("Time by label")
+                report.labelTotals.forEach { label ->
+                    Row(modifier = Modifier.fillMaxWidth().testTag("reportingLabelRow")) {
+                        Text(label.labelName, modifier = Modifier.width(120.dp))
+                        Box(modifier = Modifier.weight(1f).height(20.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(label.minutes.toFloat() / maximumLabelMinutes)
+                                    .height(20.dp)
+                                    .background(labelBarColor(label.colorCode))
+                                    .testTag("reportingLabelBar")
+                            )
+                        }
+                        Text(formatMinutes(label.minutes), modifier = Modifier.padding(start = 8.dp))
+                    }
+                }
+            }
+        }
 
         val reportListState = rememberLazyListState()
         Box(modifier = Modifier.weight(1f)) {

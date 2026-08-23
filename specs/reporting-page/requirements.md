@@ -25,10 +25,13 @@ that I can review and analyze my tracked time outside of the day-by-day timer li
   non-zero values.
 - **Given** a time frame spans multiple days, **when** the report is displayed, **then** every day in
   the selected time frame is included in the day breakdown, even if its worked time is zero.
+- **Given** completed task timers have labels, **when** the report is displayed, **then** a bar
+  diagram shows the worked time aggregated for each label in the selected time frame.
 
 ## Out of scope
 
 - Predefined time frame shortcuts (see separate story)
 - Specific worktime report content/format (see separate story)
+- Detailed label hierarchy visualization beyond the label time bar diagram
 - Exporting or printing reports
 - General app navigation layout or tab structure (see separate story)

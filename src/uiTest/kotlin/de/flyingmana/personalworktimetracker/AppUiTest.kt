@@ -42,6 +42,59 @@ class AppUiTest {
     }
 
     @Test
+    fun reportingPage_recalculatesForCustomPeriod() {
+        val data = TrackerData(entries = listOf(
+            TaskTimerEntry(
+                UUID.randomUUID(),
+                "Reported task",
+                LocalDateTime.of(2026, 8, 3, 9, 0),
+                LocalDateTime.of(2026, 8, 3, 10, 30),
+            ),
+        ))
+        composeRule.setContent {
+            ReportingPageScreen(
+                data = data,
+                initialStart = LocalDate.of(2026, 8, 1),
+                initialEnd = LocalDate.of(2026, 8, 7),
+            )
+        }
+
+        composeRule.onNodeWithTag("reportingTotalText").assertTextEquals("Total worked time: 1h 30m")
+        composeRule.onNodeWithTag("reportingStartDateInput").performTextReplacement("2026-08-03")
+        composeRule.onNodeWithTag("reportingEndDateInput").performTextReplacement("2026-08-03")
+        composeRule.onNodeWithTag("reportingTotalText").assertTextEquals("Total worked time: 1h 30m")
+        composeRule.onAllNodesWithTag("reportingDayRow").assertCountEquals(1)
+    }
+
+    @Test
+    fun reportingPage_showsTimeByLabelBars() {
+        val clientLabel = TimerLabel(UUID.randomUUID(), "Client")
+        val data = TrackerData(
+            labels = listOf(clientLabel),
+            entries = listOf(
+                TaskTimerEntry(
+                    UUID.randomUUID(),
+                    "Reported task",
+                    LocalDateTime.of(2026, 8, 3, 9, 0),
+                    LocalDateTime.of(2026, 8, 3, 10, 30),
+                    labelIds = setOf(clientLabel.id),
+                ),
+            ),
+        )
+        composeRule.setContent {
+            ReportingPageScreen(
+                data = data,
+                initialStart = LocalDate.of(2026, 8, 3),
+                initialEnd = LocalDate.of(2026, 8, 3),
+            )
+        }
+
+        composeRule.onNodeWithTag("reportingLabelChart").assertExists()
+        composeRule.onAllNodesWithTag("reportingLabelRow").assertCountEquals(1)
+        composeRule.onNodeWithTag("reportingLabelBar").assertExists()
+    }
+
+    @Test
     fun labelsTab_createsLabelsWithAnOptionalColor() {
         var persistedData: TrackerData? = null
         composeRule.setContent { App(onDataChanged = { persistedData = it }) }
