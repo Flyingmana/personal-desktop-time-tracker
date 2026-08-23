@@ -2,13 +2,16 @@ package de.flyingmana.personalworktimetracker
 
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.assertTextEquals
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import androidx.compose.ui.test.performTextReplacement
 import org.junit.Rule
 import org.junit.Test
+import java.time.LocalDate
 import java.time.LocalDateTime
+import java.util.UUID
 
 class AppUiTest {
 
@@ -64,6 +67,26 @@ class AppUiTest {
         composeRule.onNodeWithTag("attendanceTodayElapsed").assertTextEquals("Today: 30 min")
         composeRule.onNodeWithTag("continueAttendanceButton").performClick()
         composeRule.onNodeWithTag("runningAttendanceElapsed").assertExists()
+    }
+
+    @Test
+    fun timerList_groupsTaskTimersByNewestStartDateWithDailyTotals() {
+        val currentTime = LocalDateTime.of(2026, 8, 23, 10, 30)
+        val data = TrackerData(entries = listOf(
+            TaskTimerEntry(
+                UUID.randomUUID(),
+                "Earlier task",
+                LocalDateTime.of(2026, 8, 22, 9, 0),
+                LocalDateTime.of(2026, 8, 22, 9, 30),
+            ),
+            TaskTimerEntry(UUID.randomUUID(), "Live task", LocalDateTime.of(2026, 8, 23, 10, 0)),
+        ))
+        composeRule.setContent { App(clock = { currentTime }, initialData = data) }
+
+        composeRule.onAllNodesWithTag("timerDayHeading")[0]
+            .assertTextEquals("${LocalDate.of(2026, 8, 23)}: 0h 30m")
+        composeRule.onAllNodesWithTag("timerDayHeading")[1]
+            .assertTextEquals("${LocalDate.of(2026, 8, 22)}: 0h 30m")
     }
 
     @Test

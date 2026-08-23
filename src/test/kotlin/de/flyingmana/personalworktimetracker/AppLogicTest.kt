@@ -39,4 +39,20 @@ class AppLogicTest : StringSpec({
 
         attendanceMinutesOn(data, date, currentTime) shouldBe 225
     }
+
+    "task timer day groups order newest first and include live running time" {
+        val august22 = LocalDateTime.of(2026, 8, 22, 14, 0)
+        val august23 = LocalDateTime.of(2026, 8, 23, 9, 0)
+        val currentTime = LocalDateTime.of(2026, 8, 23, 10, 45)
+        val timers = listOf(
+            TaskTimerEntry(UUID.randomUUID(), "Earlier", august22, august22.plusMinutes(30)),
+            TaskTimerEntry(UUID.randomUUID(), "Finished", august23, august23.plusMinutes(45)),
+            TaskTimerEntry(UUID.randomUUID(), "Running", august23.plusHours(1)),
+        )
+
+        taskTimerDayGroups(timers, currentTime) shouldBe listOf(
+            TaskTimerDayGroup(LocalDate.of(2026, 8, 23), 90, timers.drop(1)),
+            TaskTimerDayGroup(LocalDate.of(2026, 8, 22), 30, timers.take(1)),
+        )
+    }
 })

@@ -52,10 +52,34 @@ fun attendanceMinutesOn(
     }
 }
 
+data class TaskTimerDayGroup(
+    val date: LocalDate,
+    val totalMinutes: Long,
+    val timers: List<TaskTimerEntry>,
+)
+
+fun taskTimerDayGroups(
+    timers: List<TaskTimerEntry>,
+    currentTime: LocalDateTime,
+): List<TaskTimerDayGroup> = timers.groupBy { it.start.toLocalDate() }
+    .map { (date, dayTimers) ->
+        TaskTimerDayGroup(
+            date = date,
+            totalMinutes = dayTimers.sumOf { timer ->
+                elapsedMinutes(timer.start, timer.end ?: currentTime)
+            },
+            timers = dayTimers,
+        )
+    }
+    .sortedByDescending { it.date }
+
 @Composable
-fun App(clock: () -> LocalDateTime = LocalDateTime::now) {
+fun App(
+    initialData: TrackerData = TrackerData(),
+    clock: () -> LocalDateTime = LocalDateTime::now,
+) {
     var selectedTab by remember { mutableStateOf(AppTab.Timers) }
-    var trackerData by remember { mutableStateOf(TrackerData()) }
+    var trackerData by remember { mutableStateOf(initialData) }
 
     Column(modifier = Modifier.padding(16.dp)) {
         Row(modifier = Modifier.testTag("appTabs")) {
@@ -93,6 +117,7 @@ private fun TimerListScreen(
     var timerText by remember { mutableStateOf("") }
     var currentTime by remember { mutableStateOf(clock()) }
     val taskTimers = data.entries.filterIsInstance<TaskTimerEntry>()
+    val timerGroups = taskTimerDayGroups(taskTimers, currentTime)
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -140,24 +165,36 @@ private fun TimerListScreen(
             Text(text = "No timers yet", modifier = Modifier.testTag("timerListEmpty"))
         } else {
             LazyColumn {
-                items(taskTimers, key = { it.id }) { timer ->
-                    TimerRow(
-                        timer = timer,
-                        currentTime = currentTime,
-                        onStop = {
-                            (stopEntry(data, timer.id, clock()) as? TrackerDataResult.Success)
-                                ?.let { onDataChanged(it.data) }
-                        },
-                        onContinue = {
-                            (startTaskTimer(data, UUID.randomUUID(), timer.text, clock())
-                                as? TrackerDataResult.Success)
-                                ?.let { onDataChanged(it.data) }
-                        },
-                        onTextChanged = { text ->
-                            (updateTaskTimerText(data, timer.id, text) as? TrackerDataResult.Success)
-                                ?.let { onDataChanged(it.data) }
-                        },
-                    )
+                items(timerGroups, key = { it.date }) { group ->
+                    Column(modifier = Modifier.testTag("timerDayGroup")) {
+                        Text(
+                            "${group.date.format(timerDateFormatter)}: ${formatMinutes(group.totalMinutes)}",
+                            modifier = Modifier.testTag("timerDayHeading")
+                        )
+                        Text(
+                            formatMinutes(group.totalMinutes),
+                            modifier = Modifier.testTag("timerDayTotal")
+                        )
+                        group.timers.forEach { timer ->
+                            TimerRow(
+                                timer = timer,
+                                currentTime = currentTime,
+                                onStop = {
+                                    (stopEntry(data, timer.id, clock()) as? TrackerDataResult.Success)
+                                        ?.let { onDataChanged(it.data) }
+                                },
+                                onContinue = {
+                                    (startTaskTimer(data, UUID.randomUUID(), timer.text, clock())
+                                        as? TrackerDataResult.Success)
+                                        ?.let { onDataChanged(it.data) }
+                                },
+                                onTextChanged = { text ->
+                                    (updateTaskTimerText(data, timer.id, text) as? TrackerDataResult.Success)
+                                        ?.let { onDataChanged(it.data) }
+                                },
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -261,4 +298,8 @@ private fun TimerRow(
     }
 }
 
+private fun formatMinutes(totalMinutes: Long): String =
+    "${totalMinutes / 60}h ${totalMinutes % 60}m"
+
+private val timerDateFormatter: DateTimeFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 private val timerDateTimeFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
