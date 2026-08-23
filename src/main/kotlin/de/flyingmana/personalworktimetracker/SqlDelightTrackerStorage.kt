@@ -49,9 +49,13 @@ class SqlDelightTrackerStorage(private val root: Path) {
         val previousEntries = previous.entries.associateBy { it.id }
 
         val changedLabels = data.labels.filter { previousLabels[it.id] != it }
-        if (changedLabels.isNotEmpty()) {
+        val removedLabelIds = previousLabels.keys - data.labels.map { it.id }.toSet()
+        if (changedLabels.isNotEmpty() || removedLabelIds.isNotEmpty()) {
             withDatabase(labelsPath) { database ->
                 database.transaction {
+                    removedLabelIds.forEach { labelId ->
+                        database.trackerQueries.deleteLabel(labelId.toString())
+                    }
                     changedLabels.forEach { label ->
                         database.trackerQueries.upsertLabel(
                             label.id.toString(),

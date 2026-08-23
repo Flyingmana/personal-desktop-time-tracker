@@ -44,6 +44,17 @@ class SqlDelightTrackerStorageTest : StringSpec({
             listOf(first.copy(text = "Updated"))
     }
 
+    "storage removes deleted unassigned labels" {
+        val root = Files.createTempDirectory("tracker-storage")
+        val label = TimerLabel(UUID.randomUUID(), "Unused")
+        val storage = SqlDelightTrackerStorage(root)
+        storage.save(TrackerData(labels = listOf(label)))
+
+        storage.save(TrackerData())
+
+        SqlDelightTrackerStorage(root).load().data.labels shouldBe emptyList()
+    }
+
     "storage skips corrupt weekly partitions and restores valid weeks" {
         val root = Files.createTempDirectory("tracker-storage")
         val valid = TaskTimerEntry(

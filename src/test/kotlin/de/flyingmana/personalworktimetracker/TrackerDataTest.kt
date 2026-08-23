@@ -102,6 +102,62 @@ class TrackerDataTest : StringSpec({
             TrackerDataResult.Failure(TrackerDataError.LabelHierarchyTooDeep)
     }
 
+    "task timers can start with multiple existing labels" {
+        val firstLabelId = UUID.randomUUID()
+        val secondLabelId = UUID.randomUUID()
+        val timerId = UUID.randomUUID()
+        val data = createLabel(TrackerData(), firstLabelId, "Client").successData()
+        val labels = createLabel(data, secondLabelId, "Project", "#12ab34").successData()
+
+        startTaskTimer(
+            labels,
+            timerId,
+            "Work",
+            LocalDateTime.of(2026, 8, 23, 9, 0),
+            setOf(firstLabelId, secondLabelId),
+        ).successData().entries.single() shouldBe TaskTimerEntry(
+            timerId,
+            "Work",
+            LocalDateTime.of(2026, 8, 23, 9, 0),
+            labelIds = setOf(firstLabelId, secondLabelId),
+        )
+        startTaskTimer(labels, UUID.randomUUID(), "Invalid", LocalDateTime.now(), setOf(UUID.randomUUID())) shouldBe
+            TrackerDataResult.Failure(TrackerDataError.LabelNotFound)
+    }
+
+    "labels validate colors and can only be deleted when unreferenced leaves" {
+        val parentId = UUID.randomUUID()
+        val childId = UUID.randomUUID()
+        val timerId = UUID.randomUUID()
+        val root = createLabel(TrackerData(), parentId, "Client", "#123ABC").successData()
+        val nested = createLabel(root, childId, "Project", parentId = parentId).successData()
+        val assigned = startTaskTimer(
+            nested,
+            timerId,
+            "Work",
+            LocalDateTime.of(2026, 8, 23, 9, 0),
+            setOf(childId),
+        ).successData()
+
+        createLabel(TrackerData(), UUID.randomUUID(), "Invalid", "blue") shouldBe
+            TrackerDataResult.Failure(TrackerDataError.InvalidLabelColorCode)
+        deleteLabel(nested, parentId) shouldBe TrackerDataResult.Failure(TrackerDataError.LabelHasChildren)
+        deleteLabel(assigned, childId) shouldBe TrackerDataResult.Failure(TrackerDataError.LabelIsAssigned)
+        deleteLabel(root, parentId).successData().labels shouldBe emptyList()
+    }
+
+    "label colors can be changed or cleared without changing their hierarchy" {
+        val labelId = UUID.randomUUID()
+        val label = TimerLabel(labelId, "Client", "#123456")
+
+        updateLabelColor(TrackerData(labels = listOf(label)), labelId, "#abcdef").successData().labels.single() shouldBe
+            label.copy(colorCode = "#abcdef")
+        updateLabelColor(TrackerData(labels = listOf(label)), labelId, null).successData().labels.single() shouldBe
+            label.copy(colorCode = null)
+        updateLabelColor(TrackerData(labels = listOf(label)), labelId, "invalid") shouldBe
+            TrackerDataResult.Failure(TrackerDataError.InvalidLabelColorCode)
+    }
+
     "label mutations reject invalid input without changing the model" {
         val parentId = UUID.randomUUID()
         val taskId = UUID.randomUUID()

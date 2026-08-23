@@ -1,6 +1,7 @@
 package de.flyingmana.personalworktimetracker
 
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
@@ -38,6 +39,92 @@ class AppUiTest {
         composeRule.onNodeWithTag("reportingEndDateInput").assertExists()
         composeRule.onNodeWithTag("timersTab").performClick()
         composeRule.onNodeWithTag("timerListEmpty").assertExists()
+    }
+
+    @Test
+    fun labelsTab_createsLabelsWithAnOptionalColor() {
+        var persistedData: TrackerData? = null
+        composeRule.setContent { App(onDataChanged = { persistedData = it }) }
+
+        composeRule.onNodeWithTag("labelsTab").performClick()
+        composeRule.onNodeWithTag("labelManager").assertExists()
+        composeRule.onNodeWithTag("labelNameInput").performTextInput("Client")
+        composeRule.onNodeWithTag("labelColorSwatch-#1976D2").performClick()
+        composeRule.onNodeWithTag("createLabelButton").performClick()
+
+        composeRule.runOnIdle {
+            val label = requireNotNull(persistedData).labels.single()
+            check(label.name == "Client")
+            check(label.colorCode == "#1976D2")
+        }
+    }
+
+    @Test
+    fun labelsTab_updatesAnExistingLabelColor() {
+        val label = TimerLabel(UUID.randomUUID(), "Client")
+        var persistedData: TrackerData? = null
+        composeRule.setContent {
+            App(initialData = TrackerData(labels = listOf(label)), onDataChanged = { persistedData = it })
+        }
+
+        composeRule.onNodeWithTag("labelsTab").performClick()
+        composeRule.onNodeWithTag("editLabelColorButton").performClick()
+        composeRule.onNodeWithTag("labelEditColorSwatch-#388E3C").performClick()
+        composeRule.onNodeWithTag("saveLabelColorButton").performClick()
+
+        composeRule.runOnIdle {
+            check(requireNotNull(persistedData).labels.single().colorCode == "#388E3C")
+        }
+    }
+
+    @Test
+    fun timerLabels_canBeAssignedWhenStartingAndDisplayAsChips() {
+        val label = TimerLabel(UUID.randomUUID(), "Client", "#1976D2")
+        composeRule.setContent { App(initialData = TrackerData(labels = listOf(label))) }
+
+        composeRule.onNodeWithTag("newTimerLabelsButton").performClick()
+        composeRule.onNodeWithTag("labelPickerOption").performClick()
+        composeRule.onNodeWithTag("applyLabelsButton").performClick()
+        composeRule.onNodeWithTag("startTimerButton").performClick()
+
+        composeRule.onNodeWithTag("timerLabelChip").assertExists()
+    }
+
+    @Test
+    fun timerLabels_canBeAssignedToAnExistingTimer() {
+        val label = TimerLabel(UUID.randomUUID(), "Client")
+        val timer = TaskTimerEntry(
+            UUID.randomUUID(),
+            "Existing task",
+            LocalDateTime.of(2026, 8, 23, 9, 0),
+        )
+        composeRule.setContent { App(initialData = TrackerData(entries = listOf(timer), labels = listOf(label))) }
+
+        composeRule.onNodeWithTag("timerLabelsButton").performClick()
+        composeRule.onNodeWithTag("labelPickerOption").performClick()
+        composeRule.onNodeWithTag("applyLabelsButton").performClick()
+
+        composeRule.onNodeWithTag("timerLabelChip").assertExists()
+    }
+
+    @Test
+    fun continuingALabelledTimer_carriesOverItsLabels() {
+        val label = TimerLabel(UUID.randomUUID(), "Client")
+        val start = LocalDateTime.of(2026, 8, 23, 9, 0)
+        val finishedTimer = TaskTimerEntry(
+            UUID.randomUUID(),
+            "Finished task",
+            start,
+            start.plusMinutes(30),
+            labelIds = setOf(label.id),
+        )
+        composeRule.setContent {
+            App(initialData = TrackerData(entries = listOf(finishedTimer), labels = listOf(label)))
+        }
+
+        composeRule.onNodeWithTag("continueTimerButton").performClick()
+
+        composeRule.onAllNodesWithTag("timerLabelChip").assertCountEquals(2)
     }
 
     @Test

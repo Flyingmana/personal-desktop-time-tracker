@@ -29,6 +29,10 @@ upsertLabel:
 INSERT OR REPLACE INTO labels(id, name, color_code, parent_id)
 VALUES (?, ?, ?, ?);
 
+deleteLabel:
+DELETE FROM labels
+WHERE id = ?;
+
 selectAllEntries:
 SELECT * FROM entries;
 

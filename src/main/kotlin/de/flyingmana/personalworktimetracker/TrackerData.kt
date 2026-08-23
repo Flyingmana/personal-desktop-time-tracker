@@ -54,6 +54,9 @@ sealed interface TrackerDataError {
     data object ParentLabelNotFound : TrackerDataError
     data object LabelHierarchyCycle : TrackerDataError
     data object LabelHierarchyTooDeep : TrackerDataError
+    data object InvalidLabelColorCode : TrackerDataError
+    data object LabelHasChildren : TrackerDataError
+    data object LabelIsAssigned : TrackerDataError
 }
 
 fun startTaskTimer(
@@ -61,11 +64,15 @@ fun startTaskTimer(
     id: UUID,
     text: String,
     startedAt: LocalDateTime,
+    labelIds: Set<UUID> = emptySet(),
 ): TrackerDataResult {
     if (containsId(data, id)) return TrackerDataResult.Failure(TrackerDataError.DuplicateId)
+    if (labelIds.any { labelId -> data.labels.none { it.id == labelId } }) {
+        return TrackerDataResult.Failure(TrackerDataError.LabelNotFound)
+    }
 
     return TrackerDataResult.Success(
-        data.copy(entries = data.entries + TaskTimerEntry(id, text.trim(), startedAt))
+        data.copy(entries = data.entries + TaskTimerEntry(id, text.trim(), startedAt, labelIds = labelIds))
     )
 }
 
@@ -129,6 +136,9 @@ fun createLabel(
 ): TrackerDataResult {
     if (name.isBlank()) return TrackerDataResult.Failure(TrackerDataError.BlankLabelName)
     if (containsId(data, id)) return TrackerDataResult.Failure(TrackerDataError.DuplicateId)
+    if (!isValidLabelColorCode(colorCode)) {
+        return TrackerDataResult.Failure(TrackerDataError.InvalidLabelColorCode)
+    }
     if (parentId != null && data.labels.none { it.id == parentId }) {
         return TrackerDataResult.Failure(TrackerDataError.ParentLabelNotFound)
     }
@@ -141,6 +151,37 @@ fun createLabel(
 
     return TrackerDataResult.Success(
         data.copy(labels = data.labels + TimerLabel(id, name, colorCode, parentId))
+    )
+}
+
+fun deleteLabel(data: TrackerData, labelId: UUID): TrackerDataResult {
+    if (data.labels.none { it.id == labelId }) {
+        return TrackerDataResult.Failure(TrackerDataError.LabelNotFound)
+    }
+    if (data.labels.any { it.parentId == labelId }) {
+        return TrackerDataResult.Failure(TrackerDataError.LabelHasChildren)
+    }
+    if (data.entries.filterIsInstance<TaskTimerEntry>().any { labelId in it.labelIds }) {
+        return TrackerDataResult.Failure(TrackerDataError.LabelIsAssigned)
+    }
+
+    return TrackerDataResult.Success(data.copy(labels = data.labels.filterNot { it.id == labelId }))
+}
+
+fun updateLabelColor(
+    data: TrackerData,
+    labelId: UUID,
+    colorCode: String?,
+): TrackerDataResult {
+    val label = data.labels.firstOrNull { it.id == labelId }
+        ?: return TrackerDataResult.Failure(TrackerDataError.LabelNotFound)
+    if (!isValidLabelColorCode(colorCode)) {
+        return TrackerDataResult.Failure(TrackerDataError.InvalidLabelColorCode)
+    }
+
+    val updatedLabel = label.copy(colorCode = colorCode)
+    return TrackerDataResult.Success(
+        data.copy(labels = data.labels.map { current -> if (current.id == labelId) updatedLabel else current })
     )
 }
 
@@ -182,7 +223,11 @@ fun finishedEntriesOverlapping(
 fun labelsFor(entry: TaskTimerEntry, data: TrackerData): List<TimerLabel> =
     data.labels.filter { it.id in entry.labelIds }
 
+fun isValidLabelColorCode(colorCode: String?): Boolean =
+    colorCode == null || LABEL_COLOR_CODE_REGEX.matches(colorCode)
+
 private const val MAX_LABEL_DEPTH = 3
+private val LABEL_COLOR_CODE_REGEX = Regex("#[0-9A-Fa-f]{6}")
 
 private fun containsId(data: TrackerData, id: UUID): Boolean =
     data.entries.any { it.id == id } || data.labels.any { it.id == id }
